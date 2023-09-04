@@ -2,9 +2,6 @@
 const express = require('express');
 const app = express();
 
-// Node Core Module FS
-const fs = require('fs');
-
 // express-fileUpload: resim yükleme işlemi için kullanıyoruz.
 const fileUpload = require('express-fileupload');
 
@@ -14,31 +11,22 @@ const methodOverride = require('method-override');
 // Mongoose
 const mongoose = require('mongoose');
 
-// oluşturduğumuz models klasörü altındaki Photo.js dosyasını çekiyoruz.
-const Photo = require('./models/Photo');
-// ****************************************************************************
-// Burada veritabanımıza bağlanıyoruz.
-mongoose.connect('mongodb://localhost/pcat-test-db', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-});
+// Photo Conrtollers
+const photoController = require('./conrollers/photoControllers');
+
+// Page Controllers
+const pageControllers = require('./conrollers/pageControllers');
 
 // ****************************************************************************
-// index.html response olarak döndürürken path.resolve kullanımı için path projeye çağırılmalıdır.
-const path = require('path');
+// Burada veritabanımıza bağlanıyoruz.
+mongoose.connect('mongodb://localhost/pcat-test-db');
 
 // ****************************************************************************
 // TEMPLATE ENGINE olarak ejs kullanılırken ilk önce projeye çağır
 const ejs = require('ejs');
+
 // TEMPLATE ENGINES olarak ejs kullanılacaksa view engine olarak ejs ataması yap.
 app.set('view engine', 'ejs');
-
-// ****************************************************************************
-// Middleware oluşturmak için fonksiyon ve app.use ile çağırma: app.use(express.static('public')); altına app.use(myLogger); yazılarak çağırılır.
-// const myLogger = (req, res, next) => {
-//      console.log('Middleware 1');
-//      next();
-// };
 
 // ****************************************************************************
 // Midlewares
@@ -62,96 +50,29 @@ app.use(
 
 // ****************************************************************************
 // ROUTES
-app.get('/', async (req, res) => {
-    // ****************************************************************************
-    // index.html dosyasının response olarak dönmesini istiyorsan aşağıdaki kodu yaz.
-    // res.sendFile(path.resolve(__dirname, 'temp/index.html'));
+// Tüm fotoğraflar index sayfasına gönderiliyor. Son yükleme tarihine göre sıralanıyor.
+app.get('/', photoController.getAllPhotos);
 
-    // ****************************************************************************
-    // index.ejs dosyasının response olarak dönmesini istiyorsan aşağıdaki kodu yaz. Engine Template olarak ejs kullanıldı. Dosya uzantıları ejs olarak değiştirildi.
-    const photos = await Photo.find({}).sort('-dateCreated');
-    res.render('index', {
-        photos,
-    });
-});
+// Her bir fotoğraf için özel sayfalar oluşturuluyor.
+app.get('/photos/:id', photoController.getPhoto);
 
-// Photo'lar için özel sayfalar
-app.get('/photos/:id', async (req, res) => {
-    // console.log(req.params.id);
-    // res.render('about');
+// Form üzerinden girilen değerlere göre veritabanında yeni bir fotoğraf oluşturuyor.
+app.post('/photos', photoController.createPhoto);
 
-    // ****************************************************************************
-    // Veritabanına bağlanacak tıklanan id değerini alacak ve arayacak. Sonuç olarak photo sayfasına id değeri verilen verinin tüm değerlerini gönderecek.
-    const photo = await Photo.findById(req.params.id);
-    res.render('photo', {
-        photo,
-    });
-});
+// Edit sayfasından gönderilen PUT isteğini POST olarak değiştiriyoruz. Sonra verilen değerlere göre fotoğraf verisini güncelliyoruz.
+app.put('/photos/:id', photoController.updatePhoto);
 
-app.get('/about', (req, res) => {
-    res.render('about');
-});
+// Bir resim silmek için kullanılan fonksiyon
+app.delete('/photos/:id', photoController.deletePhoto);
 
-app.get('/add', (req, res) => {
-    res.render('add');
-});
+// About Page Yönlendirmesi
+app.get('/about', pageControllers.getAboutPage);
 
-// Form üzerinden fotoğraf ekleme fonksiyonu.
-app.post('/photos', async (req, res) => {
-    // Gönderilen resmin verileri için req.files.name
-    // console.log(req.files.image);
-    // await Photo.create(req.body);
-    // res.redirect('/');
+// Add Page Yönlendirmesi
+app.get('/add', pageControllers.getAddPage);
 
-    const uploadDir = 'public/uploads';
-    if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir);
-    }
-
-    // İlk önce kullanıcının yüklediği resim uploadImage değişkenine atanıyor.
-    let uploadImage = req.files.image;
-    // uploadImage değişkenine atanan resim kullanıcı bilgisayarında. Bu resmi alıp kendi sunucumuzda /public klasörü altına uploads klasörü altına yeni resim olarak kaydedecez.
-    // Bu sadece bir dosya yoludur.
-    let uploadPath = __dirname + '/public/uploads/' + uploadImage.name;
-
-    // Üst tarafta aldığımız uploadPath dosya yolunu taşımamız gerekiyor. ilk önce konumu sonraki parametre olarak callback fnc yazıyoruz ve sunucumuza da dosyanın konumunu kaydediyoruz.
-    uploadImage.mv(uploadPath, async () => {
-        await Photo.create({
-            ...req.body,
-            image: '/uploads/' + uploadImage.name,
-        });
-        res.redirect('/');
-    });
-});
-
-// Özel resim sayfa içeriğinde bulunan update butonu ile açılan yeni sayfanın fonksiyonu
-app.get('/photos/edit/:id', async (req, res) => {
-    const photo = await Photo.findOne({ _id: req.params.id });
-    res.render('edit', {
-        photo,
-    });
-});
-
-// Edit sayfasından gönderilen PUT isteğini POST olarak değiştiriyoruz.
-app.put('/photos/:id', async (req, res) => {
-    const photo = await Photo.findOne({ _id: req.params.id });
-    photo.title = req.body.title;
-    photo.description = req.body.description;
-    photo.save();
-    // Sayfanın url bilgisi için req.params.id kullanıyoruz.
-    res.redirect(`/photos/${req.params.id}`);
-});
-
-// Photo sayfasından resim silmek için kullanılan fonksiyon
-// Bu isteğin yakalanması için yukarıda methodOverride fonksiyonu içine parametre girilmeli.
-app.delete('/photos/:id', async (req, res) => {
-    const photo = await Photo.findOne({_id: req.params.id});
-    let deletedImage = __dirname + '/public' + photo.image;
-    fs.unlinkSync(deletedImage);
-    await Photo.findByIdAndRemove(req.params.id);
-
-    res.redirect('/');
-});
+// Yeni resim oluşturulduğu zaman, resmin özel sayfasını oluşturup yönlendirme yapacak fonksiyon.
+app.get('/photos/edit/:id', pageControllers.getEditPage);
 
 const port = 3000;
 app.listen(port, () => {
