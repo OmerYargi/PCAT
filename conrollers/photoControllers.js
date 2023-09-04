@@ -7,9 +7,22 @@ const fs = require('fs');
 // ****************************************************************************
 // Tüm fotoğraflar index sayfasına gönderiliyor. Son yükleme tarihine göre sıralanıyor.
 exports.getAllPhotos = async (req, res) => {
-    const photos = await Photo.find({}).sort('-dateCreated');
+    // req.query.page: root (/) sonrası gelen ?page=4 sorgusundaki 4 değerini alır. Eğer sorgu yoksa yalnızca / root varsa 1 değerini alacaktır.
+    const page = req.query.page || 1;
+    // Bir sayfada kaç tane fotoğraf gösterilecek?
+    const photosPerPage = 1;
+    // Veritabanında bulunan veri sayısını alır.
+    const totalPhotos = await Photo.find().countDocuments();
+    // Biz hangi sayfadaysak o sayfadaki verileri gösterecek fonksiyon.
+    const photos = await Photo.find({})
+        .sort('-dateCreated')
+        .skip((page - 1) * photosPerPage)
+        .limit(photosPerPage);
+
     res.render('index', {
-        photos,
+        photos: photos,
+        current: page,
+        pages: Math.ceil(totalPhotos / photosPerPage),
     });
 };
 
