@@ -10,7 +10,7 @@ exports.getAllPhotos = async (req, res) => {
     // req.query.page: root (/) sonrası gelen ?page=4 sorgusundaki 4 değerini alır. Eğer sorgu yoksa yalnızca / root varsa 1 değerini alacaktır.
     const page = req.query.page || 1;
     // Bir sayfada kaç tane fotoğraf gösterilecek?
-    const photosPerPage = 1;
+    const photosPerPage = 2;
     // Veritabanında bulunan veri sayısını alır.
     const totalPhotos = await Photo.find().countDocuments();
     // Biz hangi sayfadaysak o sayfadaki verileri gösterecek fonksiyon.
